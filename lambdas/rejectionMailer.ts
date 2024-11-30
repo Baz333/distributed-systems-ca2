@@ -19,21 +19,20 @@ const client = new SESClient({region: SES_REGION});
 export const handler: SQSHandler = async(event: any) => {
     console.log("Event ", JSON.stringify(event));
     for(const record of event.Records) {
-        const sns = record.Sns;
-        const snsMessage = JSON.parse(sns.Message);
+        const recordBody = JSON.parse(record.body);
+        const uploadError = recordBody.Error
+        const snsMessage = JSON.parse(recordBody.Message)
 
         if(snsMessage.Records) {
             console.log("Record body ", JSON.stringify(snsMessage));
             for(const messageRecord of snsMessage.Records) {
                 const s3e = messageRecord.s3;
                 const srcBucket = s3e.bucket.name;
-                //Object key may have spaces or unicode non-ASCII characters
-                const srcKey = decodeURIComponent(s3e.object.key.replace(/\+/g, " "));
                 try {
                     const { name, email, message }: ContactDetails = {
                         name: "The Photo Album",
                         email: SES_EMAIL_FROM,
-                        message: `We recieved your Image. Its URL is s3://${srcBucket}/${srcKey}`,
+                        message: `We failed to upload your image to ${srcBucket}. Error: ${uploadError}`,
                     };
                     const params = sendEmailParams({ name, email, message });
                     await client.send(new SendEmailCommand(params));
@@ -59,7 +58,7 @@ function sendEmailParams({ name, email, message }: ContactDetails) {
             },
             Subject: {
                 Charset: "UTF-8",
-                Data: `New image Upload`,
+                Data: `Image Upload Failed`,
             },
         },
         Source: SES_EMAIL_FROM

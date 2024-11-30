@@ -59,6 +59,8 @@ export class CA2AppStack extends cdk.Stack {
 			memorySize: 128,
 			environment: {
 				TABLE_NAME: imageTable.tableName,
+				REGION: cdk.Aws.REGION,
+				DLQ_URL: deadLetterQueue.queueUrl,
 			},
 		});
 
@@ -133,6 +135,16 @@ export class CA2AppStack extends cdk.Stack {
 				resources: ["*"],
 			})
 		);
+
+		logImageFn.addToRolePolicy(
+			new iam.PolicyStatement({
+				effect: iam.Effect.ALLOW,
+				actions: [
+					"sqs:SendMessage",
+				],
+				resources: ["*"],
+			})
+		)
 
 		// Output
 		new cdk.CfnOutput(this, "bucketName", {
