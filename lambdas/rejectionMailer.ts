@@ -32,7 +32,8 @@ export const handler: SQSHandler = async(event: any) => {
                     const { name, email, message }: ContactDetails = {
                         name: "The Photo Album",
                         email: SES_EMAIL_FROM,
-                        message: `We failed to upload your image to ${srcBucket}. Error: ${uploadError}`,
+                        message: `We failed to process your image. 
+                        Error: ${uploadError}`,
                     };
                     const params = sendEmailParams({ name, email, message });
                     await client.send(new SendEmailCommand(params));

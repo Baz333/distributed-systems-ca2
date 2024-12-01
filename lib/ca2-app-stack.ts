@@ -52,11 +52,15 @@ export class CA2AppStack extends cdk.Stack {
 		});
 
 		//Lambda Functions
-		const logImageFn = new lambdanode.NodejsFunction(this, "LogImageFn", {
+		const appCommonFnProps = {
 			runtime: lambda.Runtime.NODEJS_18_X,
+			memorySize: 1024,
+			timeout: cdk.Duration.seconds(3),
+		}
+
+		const logImageFn = new lambdanode.NodejsFunction(this, "LogImageFn", {
+			...appCommonFnProps,
 			entry: `${__dirname}/../lambdas/logImage.ts`,
-			timeout: cdk.Duration.seconds(15),
-			memorySize: 128,
 			environment: {
 				TABLE_NAME: imageTable.tableName,
 				REGION: cdk.Aws.REGION,
@@ -65,18 +69,19 @@ export class CA2AppStack extends cdk.Stack {
 		});
 
 		const confirmationMailerFn = new lambdanode.NodejsFunction(this, "ConfirmationMailerFn", {
-			runtime: lambda.Runtime.NODEJS_18_X,
-			memorySize: 1024,
-			timeout: cdk.Duration.seconds(3),
+			...appCommonFnProps,
 			entry: `${__dirname}/../lambdas/confirmationMailer.ts`,
 		});
 
 		const rejectionMailerFn = new lambdanode.NodejsFunction(this, "RejectionMailerFn", {
-			runtime: lambda.Runtime.NODEJS_18_X,
-			memorySize: 1024,
-			timeout: cdk.Duration.seconds(3),
+			...appCommonFnProps,
 			entry: `${__dirname}/../lambdas/rejectionMailer.ts`,
 		});
+		
+		const updateTableFn = new lambdanode.NodejsFunction(this, "UpdateTableFn", {
+			...appCommonFnProps,
+			entry: `${__dirname}/../lambdas/updateTable.ts`,
+		})
 
 		//S3 -> SNS
 		imageBucket.addEventNotification(
@@ -92,6 +97,10 @@ export class CA2AppStack extends cdk.Stack {
 		//SNS -> Lambda
 		imageUploadTopic.addSubscription(
 			new subs.LambdaSubscription(confirmationMailerFn)
+		);
+
+		imageUploadTopic.addSubscription(
+			new subs.LambdaSubscription(updateTableFn)
 		);
 
 		//SQS -> Lambda
