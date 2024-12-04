@@ -81,6 +81,9 @@ export class CA2AppStack extends cdk.Stack {
 		const updateTableFn = new lambdanode.NodejsFunction(this, "UpdateTableFn", {
 			...appCommonFnProps,
 			entry: `${__dirname}/../lambdas/updateTable.ts`,
+			environment: {
+				TABLE_NAME: imageTable.tableName,
+			},
 		})
 
 		//S3 -> SNS
@@ -120,6 +123,7 @@ export class CA2AppStack extends cdk.Stack {
 		//Permissions
 		imageBucket.grantRead(logImageFn);
 		imageTable.grantWriteData(logImageFn);
+		imageTable.grantReadWriteData(updateTableFn);
 
 		confirmationMailerFn.addToRolePolicy(
 			new iam.PolicyStatement({
