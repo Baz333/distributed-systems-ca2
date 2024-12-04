@@ -10,8 +10,10 @@ import * as subs from "aws-cdk-lib/aws-sns-subscriptions";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 
+
 import { Construct } from "constructs";
 import { DynamoDB } from "@aws-sdk/client-dynamodb";
+import { exists, existsSync } from "fs";
 // import * as sqs from 'aws-cdk-lib/aws-sqs';
 
 export class CA2AppStack extends cdk.Stack {
@@ -103,7 +105,13 @@ export class CA2AppStack extends cdk.Stack {
 		);
 
 		imageUploadTopic.addSubscription(
-			new subs.LambdaSubscription(updateTableFn)
+			new subs.LambdaSubscription(updateTableFn, {
+				filterPolicy: {
+					metadata_type: sns.SubscriptionFilter.stringFilter({
+						allowlist: ["Caption", "Date", "Photographer"]
+					})
+				}
+			})
 		);
 
 		//SQS -> Lambda
