@@ -1,7 +1,7 @@
 import { SQSHandler } from "aws-lambda";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb"
+import { DynamoDBDocumentClient, PutCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb"
 import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 
 const s3 = new S3Client();
@@ -20,35 +20,51 @@ export const handler: SQSHandler = async(event) => {
                 const s3e = messageRecord.s3;
                 const srcKey = decodeURIComponent(s3e.object.key.replace(/\+/g, " "));
                 const fileType = srcKey.split(".").pop() || "";
+                const eventType = messageRecord.eventName;
 
-                if (["jpeg", "png", "jpg"].includes(fileType)) {
-                    console.log(`File type okay: ${fileType}`)
-                    try {
-                        const filename = srcKey.substring(srcKey.lastIndexOf("/") + 1); //Remove folders from key
-
-                        await ddbDocClient.send(
-                            new PutCommand({
-                                TableName: process.env.TABLE_NAME,
-                                Item: {
-                                    imageId: filename,
-                                }
-                            })
-                        )
-                    } catch (error) {
-                        console.log(error);
+                if(eventType === "ObjectCreated:Put") {
+                    if (["jpeg", "png", "jpg"].includes(fileType)) {
+                        console.log(`File type okay: ${fileType}`)
+                        try {
+                            await ddbDocClient.send(
+                                new PutCommand({
+                                    TableName: process.env.TABLE_NAME,
+                                    Item: {
+                                        imageId: srcKey,
+                                    }
+                                })
+                            )
+                        } catch (error) {
+                            console.log(error);
+                        }
+                    } else {
+                        console.log("Incorrect file type")
+                        try {
+                            recordBody.Error = `Unsupported file type: ${fileType}`
+                            await sqsClient.send(
+                                new SendMessageCommand({
+                                    QueueUrl: process.env.DLQ_URL,
+                                    MessageBody: JSON.stringify(recordBody)
+                                })
+                            );
+                        } catch (error) {
+                            console.log("ERROR: " + error);
+                        }
                     }
-                } else {
-                    console.log("Incorrect file type")
+                } else if(eventType === "ObjectRemoved:Delete") {
+                    console.log(`Deleting ${srcKey}`)
                     try {
-                        recordBody.Error = `Unsupported file type: ${fileType}`
-                        await sqsClient.send(
-                            new SendMessageCommand({
-                                QueueUrl: process.env.DLQ_URL,
-                                MessageBody: JSON.stringify(recordBody)
+                        await ddbDocClient.send(
+                            new DeleteCommand({
+                                TableName: process.env.TABLE_NAME,
+                                Key: {
+                                    imageId: srcKey,
+                                },
                             })
                         );
+                        console.log(`Deleted ${srcKey}`)
                     } catch (error) {
-                        console.log("ERROR: " + error);
+                        console.log(`Failed to delete ${srcKey}`)
                     }
                 }
             }

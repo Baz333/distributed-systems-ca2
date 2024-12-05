@@ -94,6 +94,11 @@ export class CA2AppStack extends cdk.Stack {
 			new s3n.SnsDestination(imageUploadTopic)
 		);
 
+		imageBucket.addEventNotification(
+			s3.EventType.OBJECT_REMOVED,
+			new s3n.SnsDestination(imageUploadTopic)
+		)
+
 		//SNS -> SQS
 		imageUploadTopic.addSubscription(
 			new subs.SqsSubscription(imageQueue)
