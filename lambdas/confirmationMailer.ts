@@ -1,4 +1,4 @@
-import { SQSHandler } from "aws-lambda";
+import { DynamoDBStreamHandler } from "aws-lambda";
 import { SES_EMAIL_FROM, SES_EMAIL_TO, SES_REGION } from "env";
 import { SESClient, SendEmailCommand, SendEmailCommandInput } from "@aws-sdk/client-ses";
 
@@ -16,30 +16,21 @@ type ContactDetails = {
 
 const client = new SESClient({region: SES_REGION});
 
-export const handler: SQSHandler = async(event: any) => {
+export const handler: DynamoDBStreamHandler = async(event: any) => {
     console.log("Event ", JSON.stringify(event));
     for(const record of event.Records) {
-        const sns = record.Sns;
-        const snsMessage = JSON.parse(sns.Message);
-
-        if(snsMessage.Records) {
-            console.log("Record body ", JSON.stringify(snsMessage));
-            for(const messageRecord of snsMessage.Records) {
-                const s3e = messageRecord.s3;
-                const srcBucket = s3e.bucket.name;
-                //Object key may have spaces or unicode non-ASCII characters
-                const srcKey = decodeURIComponent(s3e.object.key.replace(/\+/g, " "));
-                try {
-                    const { name, email, message }: ContactDetails = {
-                        name: "The Photo Album",
-                        email: SES_EMAIL_FROM,
-                        message: `We recieved your Image. Its URL is s3://${srcBucket}/${srcKey}`,
-                    };
-                    const params = sendEmailParams({ name, email, message });
-                    await client.send(new SendEmailCommand(params));
-                } catch (error: unknown) {
-                    console.log("ERROR is: ", error);
-                }
+        if(record.eventName === "INSERT" && record.dynamodb.NewImage) {
+            const srcKey = record.dynamodb.NewImage.imageId.S;
+            try {
+                const { name, email, message }: ContactDetails = {
+                    name: "The Photo Album",
+                    email: SES_EMAIL_FROM,
+                    message: `We recieved your Image. Its URL is s3://${process.env.BUCKET_NAME}/${srcKey}`,
+                };
+                const params = sendEmailParams({ name, email, message });
+                await client.send(new SendEmailCommand(params));
+            } catch (error: unknown) {
+                console.log("ERROR is: ", error);
             }
         }
     }

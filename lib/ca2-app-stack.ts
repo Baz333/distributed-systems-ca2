@@ -10,11 +10,7 @@ import * as subs from "aws-cdk-lib/aws-sns-subscriptions";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 
-
 import { Construct } from "constructs";
-import { DynamoDB } from "@aws-sdk/client-dynamodb";
-import { exists, existsSync } from "fs";
-// import * as sqs from 'aws-cdk-lib/aws-sqs';
 
 export class CA2AppStack extends cdk.Stack {
 	constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -51,6 +47,7 @@ export class CA2AppStack extends cdk.Stack {
 				type: dynamodb.AttributeType.STRING,
 			},
 			removalPolicy: cdk.RemovalPolicy.DESTROY,
+			stream: dynamodb.StreamViewType.NEW_IMAGE,
 		});
 
 		//Lambda Functions
@@ -73,6 +70,9 @@ export class CA2AppStack extends cdk.Stack {
 		const confirmationMailerFn = new lambdanode.NodejsFunction(this, "ConfirmationMailerFn", {
 			...appCommonFnProps,
 			entry: `${__dirname}/../lambdas/confirmationMailer.ts`,
+			environment: {
+				BUCKET_NAME: imageBucket.bucketName,
+			},
 		});
 
 		const rejectionMailerFn = new lambdanode.NodejsFunction(this, "RejectionMailerFn", {
@@ -106,10 +106,6 @@ export class CA2AppStack extends cdk.Stack {
 
 		//SNS -> Lambda
 		imageUploadTopic.addSubscription(
-			new subs.LambdaSubscription(confirmationMailerFn)
-		);
-
-		imageUploadTopic.addSubscription(
 			new subs.LambdaSubscription(updateTableFn, {
 				filterPolicy: {
 					metadata_type: sns.SubscriptionFilter.stringFilter({
@@ -132,6 +128,12 @@ export class CA2AppStack extends cdk.Stack {
 			maxBatchingWindow: cdk.Duration.seconds(5),
 		});
 		rejectionMailerFn.addEventSource(rejectionMailerEventSource);
+
+		//DDB -> Lambda
+		confirmationMailerFn.addEventSource(new events.DynamoEventSource(imageTable, {
+			startingPosition: lambda.StartingPosition.TRIM_HORIZON,
+			batchSize: 2,
+		}))
 
 		//Permissions
 		imageBucket.grantRead(logImageFn);
