@@ -17,10 +17,12 @@ type ContactDetails = {
 const client = new SESClient({region: SES_REGION});
 
 export const handler: DynamoDBStreamHandler = async(event: any) => {
-    console.log("Event ", JSON.stringify(event));
+    console.log("Event - ", JSON.stringify(event));
     for(const record of event.Records) {
+        console.log("Record - ", JSON.stringify(record));
         if(record.eventName === "INSERT" && record.dynamodb.NewImage) {
             const srcKey = record.dynamodb.NewImage.imageId.S;
+            console.log(`Emailing user for adding ${srcKey}`);
             try {
                 const { name, email, message }: ContactDetails = {
                     name: "The Photo Album",
@@ -29,6 +31,7 @@ export const handler: DynamoDBStreamHandler = async(event: any) => {
                 };
                 const params = sendEmailParams({ name, email, message });
                 await client.send(new SendEmailCommand(params));
+                console.log(`Email sent`);
             } catch (error: unknown) {
                 console.log("ERROR is: ", error);
             }

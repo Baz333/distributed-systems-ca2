@@ -17,18 +17,19 @@ type ContactDetails = {
 const client = new SESClient({region: SES_REGION});
 
 export const handler: SQSHandler = async(event: any) => {
-    console.log("Event ", JSON.stringify(event));
+    console.log("Event - ", JSON.stringify(event));
     for(const record of event.Records) {
         const recordBody = JSON.parse(record.body);
         const uploadError = recordBody.Error
         const snsMessage = JSON.parse(recordBody.Message)
 
         if(snsMessage.Records) {
-            console.log("Record body ", JSON.stringify(snsMessage));
+            console.log("Record body - ", JSON.stringify(snsMessage));
             for(const messageRecord of snsMessage.Records) {
                 const s3e = messageRecord.s3;
                 const srcBucket = s3e.bucket.name;
                 try {
+                    console.log("Sending rejection email");
                     const { name, email, message }: ContactDetails = {
                         name: "The Photo Album",
                         email: SES_EMAIL_FROM,
@@ -37,8 +38,9 @@ export const handler: SQSHandler = async(event: any) => {
                     };
                     const params = sendEmailParams({ name, email, message });
                     await client.send(new SendEmailCommand(params));
+                    console.log("Email sent");
                 } catch (error: unknown) {
-                    console.log("ERROR is: ", error);
+                    console.log(`Failed to send email - ${error}`);
                 }
             }
         }

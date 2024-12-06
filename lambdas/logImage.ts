@@ -9,13 +9,13 @@ const sqsClient = new SQSClient();
 const ddbDocClient = createDdbDocClient();
 
 export const handler: SQSHandler = async(event) => {
-    console.log("Event ", JSON.stringify(event));
+    console.log("Event - ", JSON.stringify(event));
     for(const record of event.Records) {
         const recordBody = JSON.parse(record.body);
         const snsMessage = JSON.parse(recordBody.Message)
 
         if(snsMessage.Records) {
-            console.log("Record body ", JSON.stringify(snsMessage));
+            console.log("Record body - ", JSON.stringify(snsMessage));
             for(const messageRecord of snsMessage.Records) {
                 const s3e = messageRecord.s3;
                 const srcKey = decodeURIComponent(s3e.object.key.replace(/\+/g, " "));
@@ -23,8 +23,9 @@ export const handler: SQSHandler = async(event) => {
                 const eventType = messageRecord.eventName;
 
                 if(eventType === "ObjectCreated:Put") {
+                    console.log(`Adding ${srcKey} to table`);
                     if (["jpeg", "png", "jpg"].includes(fileType)) {
-                        console.log(`File type okay: ${fileType}`)
+                        console.log(`File type ${fileType} okay`);
                         try {
                             await ddbDocClient.send(
                                 new PutCommand({
@@ -35,10 +36,10 @@ export const handler: SQSHandler = async(event) => {
                                 })
                             )
                         } catch (error) {
-                            console.log(error);
+                            console.log(`Failed to add ${srcKey} - ${error}`);
                         }
                     } else {
-                        console.log("Incorrect file type")
+                        console.log(`Unsupported file type: ${fileType}`);
                         try {
                             recordBody.Error = `Unsupported file type: ${fileType}`
                             await sqsClient.send(
@@ -48,11 +49,11 @@ export const handler: SQSHandler = async(event) => {
                                 })
                             );
                         } catch (error) {
-                            console.log("ERROR: " + error);
+                            console.log(`Failed to message DLQ - ${error}`);
                         }
                     }
                 } else if(eventType === "ObjectRemoved:Delete") {
-                    console.log(`Deleting ${srcKey}`)
+                    console.log(`Deleting ${srcKey}`);
                     try {
                         await ddbDocClient.send(
                             new DeleteCommand({
@@ -62,9 +63,9 @@ export const handler: SQSHandler = async(event) => {
                                 },
                             })
                         );
-                        console.log(`Deleted ${srcKey}`)
+                        console.log(`Deleted ${srcKey}`);
                     } catch (error) {
-                        console.log(`Failed to delete ${srcKey}`)
+                        console.log(`Failed to delete ${srcKey} - ${error}`);
                     }
                 }
             }

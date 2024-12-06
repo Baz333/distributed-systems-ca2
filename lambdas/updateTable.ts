@@ -25,21 +25,27 @@ export const handler = async(event: SNSEvent) => {
             );
         }
 
-        const commandOutput = await ddbDocClient.send(
-            new UpdateCommand({
-                TableName: process.env.TABLE_NAME,
-                Key: {
-                    imageId: snsMessage.id
-                },
-                UpdateExpression: "SET #m = :v",
-                ExpressionAttributeNames: {
-                    "#m": metadata,
-                },
-                ExpressionAttributeValues: {
-                    ":v": snsMessage.value,
-                }
-            })
-        );
+        try {
+            console.log(`Updating ${snsMessage.id}`);
+            await ddbDocClient.send(
+                new UpdateCommand({
+                    TableName: process.env.TABLE_NAME,
+                    Key: {
+                        imageId: snsMessage.id
+                    },
+                    UpdateExpression: "SET #m = :v",
+                    ExpressionAttributeNames: {
+                        "#m": metadata,
+                    },
+                    ExpressionAttributeValues: {
+                        ":v": snsMessage.value,
+                    }
+                })
+            );
+            console.log(`Updated ${snsMessage.id}`);
+        } catch (error) {
+            console.log(`Failed to update ${snsMessage.id}`);
+        }
     }
 };
 
